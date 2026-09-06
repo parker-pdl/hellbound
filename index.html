@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>HELLBOUND — Hellscape Horror: Level Two</title>
+<style>
+  :root { --hell: #ff2b1c; --ember: #ff6a2b; --accent: #ff3a12; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #060202; }
+  body {
+    font-family: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+    color: #f4d7d0; -webkit-user-select: none; user-select: none; touch-action: none;
+  }
+  #game { position: fixed; inset: 0; }
+  canvas { display: block; }
+
+  .overlay {
+    position: fixed; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center;
+    padding: 20px; z-index: 10; overflow-y: auto;
+    background: radial-gradient(circle at 50% 42%, rgba(60,6,2,.30), rgba(3,1,1,.88) 72%);
+    backdrop-filter: blur(2px);
+  }
+  .hidden { display: none !important; }
+
+  .title {
+    font-size: clamp(44px, 11vw, 122px); font-weight: 900; letter-spacing: .06em;
+    color: #ff1f0f; line-height: .92;
+    text-shadow: 0 0 8px var(--accent), 0 0 26px var(--accent), 0 0 60px #b00c00, 0 4px 2px #300;
+    animation: flicker 3.6s infinite;
+  }
+  @keyframes flicker {
+    0%,100%{opacity:1} 47%{opacity:1} 48%{opacity:.72} 49%{opacity:1}
+    72%{opacity:1} 73%{opacity:.6} 74%{opacity:1} 92%{opacity:.85}
+  }
+  .tagline { font-style: italic; color: #d98b7e; margin-top: 8px; font-size: clamp(13px,2.6vw,18px); opacity:.85; }
+  .pill {
+    display:inline-flex; align-items:center; gap:10px; margin-top: 16px; padding: 10px 24px;
+    border:1px solid rgba(255,60,40,.5); border-radius: 12px; background: rgba(20,3,2,.6);
+    font-size: 19px; font-weight:700; box-shadow: inset 0 0 18px rgba(255,50,30,.15);
+  }
+  .pill .flame { color: var(--ember); font-size: 21px; filter: drop-shadow(0 0 6px var(--ember)); }
+
+  .seclabel { margin-top:20px; font-size:11px; letter-spacing:.28em; color:#8f4f45; text-transform:uppercase; }
+
+  .themes { display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; justify-content:center; max-width:640px; }
+  .theme {
+    width:132px; padding:12px 8px; border:1px solid rgba(255,60,40,.28); border-radius:12px;
+    background: rgba(12,2,2,.55); cursor:pointer; transition:.15s;
+  }
+  .theme:hover { border-color: rgba(255,90,60,.7); transform: translateY(-2px); }
+  .theme.active { border-color: var(--accent); box-shadow: 0 0 20px rgba(255,43,28,.45), inset 0 0 16px rgba(255,43,28,.22); }
+  .theme .tn { font-weight:800; font-size:14px; color:#ffe4dd; letter-spacing:.04em; }
+  .theme .ts { font-size:10.5px; color:#b06b5f; margin-top:3px; font-style:italic; line-height:1.3; min-height:26px; }
+  .theme .tvibe { font-size:9px; color:#6e3d36; margin-top:5px; letter-spacing:.12em; text-transform:uppercase; }
+
+  .diffs { display:flex; gap:10px; margin-top:12px; }
+  .diff {
+    padding:9px 18px; border:1px solid rgba(255,60,40,.35); border-radius:10px;
+    background: rgba(12,2,2,.5); color:#c98a7f; font-weight:700; letter-spacing:.14em;
+    font-size:12px; text-transform:uppercase; cursor:pointer; transition:.15s;
+  }
+  .diff:hover { border-color: rgba(255,80,50,.7); color:#ffd9cf; }
+  .diff.active { border-color: var(--hell); color:#fff; box-shadow: 0 0 16px rgba(255,43,28,.5), inset 0 0 12px rgba(255,43,28,.25); }
+
+  .actions { display:flex; gap:16px; margin-top:20px; flex-wrap:wrap; justify-content:center; }
+  .btn {
+    display:inline-flex; align-items:center; gap:10px; cursor:pointer;
+    padding:15px 40px; border-radius:12px; font-size:20px; font-weight:800;
+    letter-spacing:.08em; border:1px solid transparent; transition:.15s; text-transform:uppercase;
+  }
+  .btn-primary { background: linear-gradient(180deg,#c11405,#7d0a02); color:#ffe9e4;
+    box-shadow: 0 0 26px rgba(255,40,20,.4), inset 0 1px 0 rgba(255,180,160,.35); }
+  .btn-primary:hover { background: linear-gradient(180deg,#e01906,#8f0c02); transform: translateY(-1px); }
+  .btn-ghost { background: rgba(15,3,2,.7); color:#e7b3a8; border-color: rgba(255,60,40,.4); }
+  .btn-ghost:hover { border-color: rgba(255,90,60,.8); color:#fff; }
+
+  .controls { margin-top:18px; color:#8f4f45; font-size:12.5px; line-height:1.7; }
+  .controls b { color:#d98b7e; }
+  .record { margin-top:16px; }
+
+  #hud {
+    position: fixed; top:0; left:0; right:0; z-index:5; padding:14px 20px;
+    display:flex; justify-content:space-between; align-items:flex-start;
+    pointer-events:none; text-shadow: 0 2px 8px #000;
+  }
+  .hud-box { background: rgba(10,2,2,.42); border:1px solid rgba(255,60,40,.28); border-radius:10px; padding:8px 14px; }
+  .hud-label { font-size:10px; letter-spacing:.2em; color:#a35b50; text-transform:uppercase; }
+  .hud-val { font-size:25px; font-weight:900; color:#ffe4dd; line-height:1.1; }
+  .hud-val .flame { color: var(--ember); font-size:19px; }
+  #speedTag { font-size:11px; color:#d98b7e; margin-top:2px; letter-spacing:.15em; }
+  #chaserTag { position:fixed; top:14px; left:50%; transform:translateX(-50%); z-index:5;
+    font-size:11px; letter-spacing:.22em; color:#c98a7f; text-transform:uppercase; text-shadow:0 2px 6px #000; pointer-events:none; }
+
+  .go-stat { display:flex; gap:30px; margin-top:8px; margin-bottom:6px; }
+  .go-stat div .n { font-size:32px; font-weight:900; color:#ffe4dd; }
+  .go-stat div .l { font-size:11px; letter-spacing:.18em; color:#a35b50; text-transform:uppercase; }
+  .newrec { color:#ffd23f; font-weight:800; letter-spacing:.1em; margin-top:6px; animation: flicker 2s infinite; }
+
+  .credit { position: fixed; bottom:8px; width:100%; text-align:center; font-size:11px; color:#5c322c; z-index:5; letter-spacing:.12em; }
+  .touch-only { display:none; }
+  @media (pointer: coarse) { .touch-only { display:block; } .kbd-only { display:none; } }
+  .levelTag { font-size:12px; letter-spacing:.32em; color:#c98a7f; text-transform:uppercase; margin-bottom:6px; text-shadow:0 0 10px rgba(255,60,40,.5); }
+  #timeVal.urgent { color:#ff3a12; animation: flicker 1s infinite; }
+  .go-stat { flex-wrap: wrap; justify-content: center; }
+</style>
+</head>
+<body>
+<div id="errbar" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#3a0605;color:#ffd9cf;font:13px/1.5 monospace;padding:10px 14px;border-bottom:1px solid #ff2b1c;">⚠</div>
+<script>
+  window.addEventListener("error", function (e) {
+    var b = document.getElementById("errbar");
+    if (b) { b.style.display = "block"; b.textContent = "⚠ " + (e.message || "Script error"); }
+  });
+</script>
+<div id="game"></div>
+
+<div id="hud" class="hidden">
+  <div class="hud-box">
+    <div class="hud-label">Distance</div>
+    <div class="hud-val"><span id="distVal">0</span><span style="font-size:14px;color:#a35b50">m</span></div>
+    <div id="speedTag">SPEED ×1.0</div>
+  </div>
+  <div class="hud-box" style="text-align:center">
+    <div class="hud-label">Time Left</div>
+    <div class="hud-val" id="timeVal">3:00</div>
+  </div>
+  <div class="hud-box" style="text-align:right">
+    <div class="hud-label">Souls</div>
+    <div class="hud-val"><span class="flame">🔥</span> <span id="soulVal">0</span></div>
+  </div>
+</div>
+
+<!-- MENU -->
+<div id="menu" class="overlay">
+  <div class="levelTag">Hellscape Horror · Level Two</div>
+  <div class="title">HELLBOUND</div>
+  <div class="tagline">Survive three minutes. Do not stop running.</div>
+  <div class="pill"><span class="flame">🔥</span> <span id="bankSouls">0</span> Souls</div>
+
+  <div class="seclabel">Choose your hell</div>
+  <div class="themes" id="themes"></div>
+
+  <div class="seclabel">Difficulty</div>
+  <div class="diffs" id="diffs">
+    <div class="diff" data-diff="easy">Easy</div>
+    <div class="diff active" data-diff="normal">Normal</div>
+    <div class="diff" data-diff="hellish">Hellish</div>
+  </div>
+
+  <div class="actions">
+    <button class="btn btn-primary" id="runBtn">▶ Run</button>
+  </div>
+
+  <div class="controls">
+    <span class="kbd-only"><b>← →</b> evade &nbsp;·&nbsp; <b>↑ / Space</b> leap &nbsp;·&nbsp; grab the <b>Lament Box</b> for a speed surge</span>
+    <span class="touch-only"><b>Swipe ← →</b> evade &nbsp;·&nbsp; <b>Swipe ↑ / tap</b> leap</span>
+  </div>
+
+  <div class="record hud-box" style="pointer-events:none">
+    <span style="color:#c98a7f">🏆 Furthest Escape:</span> <b id="bestVal" style="color:#ffe4dd">0</b> m
+    &nbsp;·&nbsp; <span style="color:#c98a7f">Escapes:</span> <b id="winsVal" style="color:#ffe4dd">0</b>
+  </div>
+</div>
+
+<!-- GAME OVER / WIN -->
+<div id="over" class="overlay hidden">
+  <div class="title" id="overTitle" style="font-size:clamp(32px,8vw,74px)">CAUGHT</div>
+  <div class="tagline" id="overFlavor">Hell always collects its due.</div>
+  <div class="go-stat">
+    <div><div class="n" id="goDist">0</div><div class="l">Distance</div></div>
+    <div><div class="n" id="goSouls">0</div><div class="l">Souls</div></div>
+    <div><div class="n" id="goTime">0:00</div><div class="l">Survived</div></div>
+    <div><div class="n" id="goBest">0</div><div class="l">Best</div></div>
+  </div>
+  <div class="newrec hidden" id="newRec">✦ NEW FURTHEST ESCAPE ✦</div>
+  <div class="actions">
+    <button class="btn btn-primary" id="againBtn">▶ Run Again</button>
+    <button class="btn btn-ghost" id="menuBtn">Menu</button>
+  </div>
+</div>
+
+<div class="credit">HELLBOUND · HELLSCAPE HORROR LEVEL TWO · PARKER DATA LINK</div>
+
+<audio id="bgm" src="https://pub-8cbfdb9879b946b9aaaf1cb53456c02a.r2.dev/Scary%20Run%20Music.mp3" loop preload="auto" crossorigin="anonymous"></audio>
+
+<!-- Three.js r128 + GLTFLoader: local copies first, CDN fallback. -->
+<script src="./three.min.js"></script>
+<script>window.THREE||document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>');</script>
+<script src="./GLTFLoader.js"></script>
+<script>(window.THREE&&THREE.GLTFLoader)||document.write('<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"><\/script>');</script>
+<script>
+/* ============================================================
+   HELLBOUND — Hellscape Horror: Level Two
+   3-minute hell-corridor runner. Single file, no backend.
+   Player skin: Mixamo Ch01 + "Fast Run" (runner.glb).
+   ============================================================ */
+(function () {
+  "use strict";
+
+  // Where the runner skin lives. Same folder as this page by default.
+  // Can be pointed at an R2 URL, e.g. "https://pub-xxxx.r2.dev/runner.glb".
+  var RUNNER_URL = (new URLSearchParams(location.search).get("runner")) || "./runner.glb";
+  var LEVEL_SECS = 180;              // the level runs for three minutes
+
+  var store = {
+    get: function (k, d) { try { var v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } },
+    set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  };
+
+  // ---------------- difficulty ----------------
+  // spawnGap doubled vs. the original game = half the obstacle rows.
+  var DIFFS = {
+    easy:    { name: "Easy",    startSpeed: 15, accel: 0.20, maxSpeed: 42, spawnGap: 30, soulRate: 0.55, dblChance: 0.28 },
+    normal:  { name: "Normal",  startSpeed: 19, accel: 0.30, maxSpeed: 55, spawnGap: 24, soulRate: 0.45, dblChance: 0.38 },
+    hellish: { name: "Hellish", startSpeed: 24, accel: 0.45, maxSpeed: 72, spawnGap: 19, soulRate: 0.38, dblChance: 0.58 }
+  };
+  var MAX_OBSTACLE_ROWS_IN_A_ROW = 2;  // never three obstacle rows back to back
+
+  // ---------------- themes (corridor colour + mood) ----------------
+  var THEMES = {
+    pinned:   { name: "The Pinned",   sub: "cold iron, patient dark",  title: "#e8e2d6", accent: 0x9fc4ff, fog: 0x140611, bg: 0x0a0410, glow: 0xb85cff, pit: 0x7a2bd0, floorEm: 0x160318, rune: 0xb26bff },
+    scorched: { name: "The Scorched", sub: "the furnace never sleeps",  title: "#ffd24a", accent: 0x86ff5a, fog: 0x12100a, bg: 0x080702, glow: 0xff7a1e, pit: 0xff4400, floorEm: 0x140a02, rune: 0x9dff4a },
+    drowned:  { name: "The Drowned",  sub: "the lake beneath the floor", title: "#bfe3d0", accent: 0x8fd6c0, fog: 0x08120e, bg: 0x040a08, glow: 0x3affb0, pit: 0x1f8f6a, floorEm: 0x03140e, rune: 0x4fffc0 },
+    crimson:  { name: "The Crimson",  sub: "further into the dark",     title: "#ff5a3a", accent: 0xff2b1c, fog: 0x1a0402, bg: 0x0a0201, glow: 0xff3311, pit: 0xff2200, floorEm: 0x120302, rune: 0xff3a12 }
+  };
+
+  var LANES = [-2.4, 0, 2.4];
+  var GROUND_Y = 0.9, JUMP_V = 9.2, GRAVITY = -26;
+  var VIEW_FAR = 150, DESPAWN = 12;
+
+  var state = "menu";
+  var diffKey = store.get("hb_diff", "normal"); if (!DIFFS[diffKey]) diffKey = "normal";
+  var themeKey = store.get("hb_theme", "crimson"); if (!THEMES[themeKey]) themeKey = "crimson";
+  var cfg = DIFFS[diffKey], theme = THEMES[themeKey];
+
+  var bankSouls = parseInt(store.get("hb_bank", "0"), 10) || 0;
+  var best = parseInt(store.get("hb_best", "0"), 10) || 0;
+  var wins = parseInt(store.get("hb_wins", "0"), 10) || 0;
+  var run = null;
+
+  // ---------------- audio ----------------
+  var bgm = document.getElementById("bgm");
+  function musicOn() { try { bgm.currentTime = 0; bgm.volume = 0.85; var p = bgm.play(); if (p && p.catch) p.catch(function () {}); } catch (e) {} }
+  function musicOff() { try { bgm.pause(); } catch (e) {} }
+
+  // ---------------- three setup ----------------
+  var scene = new THREE.Scene();
+  scene.background = new THREE.Color(theme.bg);
+  scene.fog = new THREE.Fog(theme.fog, 26, 118);
+
+  var camera = new THREE.PerspectiveCamera(66, window.innerWidth / window.innerHeight, 0.1, 400);
+  var renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  document.getElementById("game").appendChild(renderer.domElement);
+
+  scene.add(new THREE.AmbientLight(0x3a0f08, 0.9));
+  scene.add(new THREE.HemisphereLight(0xffb090, 0x200000, 0.22));
+  var keyLight = new THREE.DirectionalLight(0xff5a2a, 0.7); keyLight.position.set(-6, 14, 8); scene.add(keyLight);
+  var glowLight = new THREE.PointLight(theme.glow, 2.2, 46, 2); glowLight.position.set(0, 6, 4); scene.add(glowLight);
+  var pit = new THREE.PointLight(theme.pit, 1.4, 60, 2); pit.position.set(0, -3, -30); scene.add(pit);
+
+  // ---------------- materials ----------------
+  var matFloor = new THREE.MeshStandardMaterial({ color: 0x2a0806, roughness: 0.9, metalness: 0.1, emissive: theme.floorEm, emissiveIntensity: 0.6 });
+  var matLine  = new THREE.MeshBasicMaterial({ color: theme.rune });
+  var matWall  = new THREE.MeshStandardMaterial({ color: 0x160303, roughness: 1.0, emissive: 0x230604, emissiveIntensity: 0.35 });
+  var matSoul  = new THREE.MeshBasicMaterial({ color: 0xff7a2a });
+  var matBox   = new THREE.MeshStandardMaterial({ color: 0xff6a20, roughness: 0.4, metalness: 0.3, emissive: 0xff5510, emissiveIntensity: 1.1 });
+  var matRune  = new THREE.MeshBasicMaterial({ color: theme.rune });
+  var matEmber = new THREE.MeshBasicMaterial({ color: 0xff5a1e });
+  var matSpikeHot = new THREE.MeshStandardMaterial({ color: 0x1a0403, roughness: 0.5, metalness: 0.3, emissive: 0xff2a00, emissiveIntensity: 1.0 });
+  var matStone = new THREE.MeshStandardMaterial({ color: 0x1c0d10, roughness: 0.85, metalness: 0.15, emissive: 0x2a0603, emissiveIntensity: 0.4 });
+  var matWire  = new THREE.MeshBasicMaterial({ color: 0xffb060, wireframe: true });
+  var matShadow= new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.4 });
+
+  // ---------------- endless floor ----------------
+  var SEG_LEN = 30, SEG_COUNT = 8, TRACK_W = 9;
+  var segments = [], floorGroup = new THREE.Group(); scene.add(floorGroup);
+  function makeSegment() {
+    var g = new THREE.Group();
+    var floor = new THREE.Mesh(new THREE.PlaneGeometry(TRACK_W, SEG_LEN), matFloor);
+    floor.rotation.x = -Math.PI / 2; g.add(floor);
+    [-1.2, 1.2].forEach(function (x) {
+      var line = new THREE.Mesh(new THREE.PlaneGeometry(0.08, SEG_LEN), matLine);
+      line.rotation.x = -Math.PI / 2; line.position.set(x, 0.02, 0); g.add(line);
+    });
+    [-1, 1].forEach(function (s) {
+      var wall = new THREE.Mesh(new THREE.BoxGeometry(0.6, 9, SEG_LEN), matWall);
+      wall.position.set(s * (TRACK_W / 2 + 0.3), 4.2, 0); g.add(wall);
+      for (var i = 0; i < 3; i++) {
+        var rune = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.7, 0.7), matRune);
+        rune.position.set(s * (TRACK_W / 2 + 0.02), 2.6 + (i % 2) * 1.6, -SEG_LEN / 2 + 5 + i * 9); g.add(rune);
+      }
+    });
+    floorGroup.add(g); return g;
+  }
+  for (var s = 0; s < SEG_COUNT; s++) { var seg = makeSegment(); seg.position.z = -s * SEG_LEN; segments.push(seg); }
+
+  // ---------------- player: the runner skin ----------------
+  // `player` sits on the floor (y = 0 when grounded). Old game used a pivot at GROUND_Y; the
+  // physics still use run.y in that space, we just subtract GROUND_Y when placing the model.
+  var player = new THREE.Group(); scene.add(player);
+  var runnerModel = null, mixer = null, runAction = null, runnerReady = false;
+  var RUNNER_SCALE = 1.25;   // Ch01 is ~1.55 m in run pose; scale him up a touch to read on screen
+  var pLight = new THREE.PointLight(0xff5a2a, 1.3, 12, 2); pLight.position.set(0, 2.2, 0.6); player.add(pLight);
+
+  // placeholder until the glb arrives (or if it never does)
+  var placeholder = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.35, 1.7, 12),
+                                   new THREE.MeshStandardMaterial({ color: 0x3a2a26, roughness: 0.7, emissive: 0x3a0d06, emissiveIntensity: 0.4 }));
+  placeholder.position.y = 0.95; player.add(placeholder);
+
+  function loadRunner() {
+    if (!THREE.GLTFLoader) { console.warn("GLTFLoader missing; using placeholder runner"); return; }
+    new THREE.GLTFLoader().load(RUNNER_URL, function (g) {
+      runnerModel = g.scene;
+      runnerModel.traverse(function (o) { if (o.isMesh) { o.frustumCulled = false; if (o.material) { o.material.side = THREE.FrontSide; } } });
+      runnerModel.scale.setScalar(RUNNER_SCALE);
+      runnerModel.rotation.y = Math.PI;      // Mixamo faces +Z; the corridor runs toward -Z
+      player.remove(placeholder); player.add(runnerModel);
+      mixer = new THREE.AnimationMixer(runnerModel);
+      var clip = THREE.AnimationClip.findByName(g.animations, "Fast_Run") || g.animations[0];
+      if (clip) { runAction = mixer.clipAction(clip); runAction.play(); }
+      runnerReady = true;
+      window.HB_RUNNER_READY = true;
+    }, undefined, function (err) { console.warn("runner.glb failed to load", err); window.HB_RUNNER_ERR = String(err && err.message || err); });
+  }
+  loadRunner();
+
+  function shadowDisc(r) { var m = new THREE.Mesh(new THREE.CircleGeometry(r, 24), matShadow.clone()); m.rotation.x = -Math.PI / 2; m.position.y = 0.03; return m; }
+  var playerShadow = shadowDisc(0.7); scene.add(playerShadow);
+
+  // ---------------- obstacles / pickups ----------------
+  var actives = [];
+  function box(w, h, d, m) { return new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); }
+  function spawnPillar(lane, z) {
+    var g = new THREE.Group();
+    var col = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.92, 3.2, 6), matStone); col.position.y = 1.6; col.rotation.y = Math.PI / 6; g.add(col);
+    [1.0, 1.9, 2.6].forEach(function (y) { var r = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.16, 0.05), matEmber); r.position.set(0, y, 0.6); g.add(r); });
+    var cap = new THREE.Mesh(new THREE.IcosahedronGeometry(0.34, 0), matSpikeHot); cap.position.y = 3.3; g.add(cap);
+    g.position.set(LANES[lane], 0, z); scene.add(g); actives.push({ mesh: g, type: "tall", lane: lane, z: z });
+  }
+  function spawnSpike(lane, z) {
+    var g = new THREE.Group();
+    var base = new THREE.Mesh(new THREE.DodecahedronGeometry(0.55, 0), matStone); base.position.y = 0.2; base.scale.set(1.1, 0.6, 1.1); g.add(base);
+    [[-0.28, 0.85, 0.2], [0.02, 1.15, -0.1], [0.3, 0.8, 0.22]].forEach(function (p) {
+      var sp = new THREE.Mesh(new THREE.ConeGeometry(0.16, p[1], 6), matSpikeHot);
+      sp.position.set(p[0], p[1] / 2 + 0.15, p[2]); g.add(sp);
+    });
+    g.position.set(LANES[lane], 0, z); scene.add(g); actives.push({ mesh: g, type: "low", lane: lane, z: z });
+  }
+  function spawnSoul(lane, z, high) {
+    var g = new THREE.Group();
+    g.add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.3, 0), matSoul));
+    var halo = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.03, 8, 22), matEmber); halo.rotation.x = Math.PI / 2.2; g.add(halo);
+    g.add(new THREE.PointLight(0xff7a2a, 0.9, 6, 2));
+    g.position.set(LANES[lane], high ? 2.1 : 1.0, z); scene.add(g);
+    actives.push({ mesh: g, type: "soul", lane: lane, z: z, high: !!high, spin: true });
+  }
+  function spawnBox(lane, z) {
+    var g = new THREE.Group();
+    g.add(box(0.8, 0.8, 0.8, matBox));
+    g.add(new THREE.Mesh(new THREE.BoxGeometry(0.94, 0.94, 0.94), matWire));
+    g.add(new THREE.PointLight(0xff6a20, 1.4, 8, 2));
+    g.position.set(LANES[lane], 0.7, z); scene.add(g);
+    actives.push({ mesh: g, type: "box", lane: lane, z: z, spin: true });
+  }
+  function clearActives() { for (var i = 0; i < actives.length; i++) scene.remove(actives[i].mesh); actives.length = 0; }
+
+  // Row rule: at most two obstacle rows back to back. The third row is always a breather
+  // (souls only). Obstacles never fill all three lanes — at least one lane is always open.
+  var obstacleStreak = 0;
+  window.HB_ROW_LOG = [];
+  function spawnRow(z) {
+    var open = [0, 1, 2];
+    var hasObstacle = obstacleStreak < MAX_OBSTACLE_ROWS_IN_A_ROW;
+    if (hasObstacle) {
+      var blockCount = (Math.random() < cfg.dblChance) ? 2 : 1;
+      for (var b = 0; b < blockCount; b++) {
+        var idx = Math.floor(Math.random() * open.length);
+        var lane = open.splice(idx, 1)[0];
+        if (Math.random() < 0.5) spawnPillar(lane, z); else spawnSpike(lane, z);
+      }
+      obstacleStreak++;
+    } else {
+      obstacleStreak = 0;
+    }
+    window.HB_ROW_LOG.push(hasObstacle ? 1 : 0);
+    open.forEach(function (lane) { if (Math.random() < (hasObstacle ? cfg.soulRate : 0.8)) spawnSoul(lane, z, Math.random() < 0.4); });
+    if (open.length && Math.random() < 0.12) spawnBox(open[Math.floor(Math.random() * open.length)], z - 3);
+  }
+
+  // ---------------- input ----------------
+  function moveLane(dir) { if (state !== "playing") return; run.lane = Math.max(0, Math.min(2, run.lane + dir)); }
+  function jump() { if (state !== "playing") return; if (run.grounded) { run.vy = JUMP_V; run.grounded = false; } }
+  window.addEventListener("keydown", function (e) {
+    if (e.repeat) return;
+    if (e.key === "ArrowLeft" || e.key === "a") { moveLane(-1); e.preventDefault(); }
+    else if (e.key === "ArrowRight" || e.key === "d") { moveLane(1); e.preventDefault(); }
+    else if (e.key === "ArrowUp" || e.key === "w" || e.key === " ") { jump(); e.preventDefault(); }
+    else if (e.key === "Enter") { if (state === "menu" || state === "over") startRun(); }
+  });
+  var touchStart = null;
+  renderer.domElement.addEventListener("touchstart", function (e) { touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }, { passive: true });
+  renderer.domElement.addEventListener("touchend", function (e) {
+    if (!touchStart) return; var t = e.changedTouches[0];
+    var dx = t.clientX - touchStart.x, dy = t.clientY - touchStart.y, adx = Math.abs(dx), ady = Math.abs(dy);
+    if (adx < 24 && ady < 24) jump(); else if (adx > ady) moveLane(dx > 0 ? 1 : -1); else if (dy < 0) jump();
+    touchStart = null;
+  }, { passive: true });
+
+  // ---------------- lifecycle ----------------
+  function startRun() {
+    cfg = DIFFS[diffKey]; theme = THEMES[themeKey]; clearActives(); obstacleStreak = 0; window.HB_ROW_LOG.length = 0;
+    run = { lane: 1, x: 0, y: GROUND_Y, vy: 0, grounded: true, speed: cfg.startSpeed, dist: 0, souls: 0, nextSpawn: -30,
+            boost: 0, camShake: 0, time: 0, dead: false, won: false, fall: 0 };
+    player.position.set(0, 0, 0); player.rotation.set(0, 0, 0);
+    if (runnerModel) { runnerModel.rotation.set(0, Math.PI, 0); }
+    if (runAction) { runAction.reset().play(); runAction.timeScale = 1; }
+    state = "playing";
+    show("hud", true); show("menu", false); show("over", false);
+    musicOn();
+    updateHud();
+  }
+  function fmtTime(s) { s = Math.max(0, Math.ceil(s)); var m = Math.floor(s / 60), r = s % 60; return m + ":" + (r < 10 ? "0" : "") + r; }
+  function finishRun(won) {
+    state = "over";
+    var d = Math.floor(run.dist);
+    run.won = won; run.dead = !won;
+    bankSouls += run.souls; store.set("hb_bank", String(bankSouls));
+    var isRecord = d > best; if (isRecord) { best = d; store.set("hb_best", String(best)); }
+    if (won) { wins++; store.set("hb_wins", String(wins)); }
+    document.getElementById("overTitle").textContent = won ? "YOU MADE IT OUT" : "CAUGHT";
+    document.getElementById("goDist").textContent = d;
+    document.getElementById("goSouls").textContent = run.souls;
+    document.getElementById("goTime").textContent = fmtTime(Math.min(LEVEL_SECS, run.time));
+    document.getElementById("goBest").textContent = best;
+    show("newRec", isRecord);
+    document.getElementById("overFlavor").textContent = won
+      ? "Three minutes of hell, and you are still on your feet. Level Two complete."
+      : (isRecord ? "Further than ever. Still not free." : pickFlavor(d));
+    run.camShake = won ? 0.2 : 0.7;
+    if (runAction) { runAction.timeScale = won ? 0.6 : 0; }
+    show("hud", false);
+    window.HB_RESULT = won ? "won" : "dead";
+    setTimeout(function () { if (state === "over") { show("over", true); musicOff(); } }, won ? 900 : 520);
+  }
+  function endRun() { finishRun(false); }
+  function winRun() { finishRun(true); }
+  function pickFlavor(d) {
+    if (d < 120) return "That was barely a stumble.";
+    if (d < 320) return "The corridor swallows another.";
+    if (d < 600) return "You ran well. Hell ran better.";
+    return "So close. The floor still took you.";
+  }
+
+  function updateHud() {
+    document.getElementById("distVal").textContent = Math.floor(run.dist);
+    document.getElementById("soulVal").textContent = run.souls;
+    document.getElementById("speedTag").textContent = "SPEED ×" + (run.speed / cfg.startSpeed).toFixed(1);
+    var tv = document.getElementById("timeVal"); var left = LEVEL_SECS - run.time;
+    tv.textContent = fmtTime(left); tv.classList.toggle("urgent", left <= 15);
+  }
+  function show(id, on) { document.getElementById(id).classList.toggle("hidden", !on); }
+
+  // ---------------- theme application ----------------
+  function applyTheme(key) {
+    themeKey = key; theme = THEMES[key]; store.set("hb_theme", key);
+    scene.background.setHex(theme.bg);
+    scene.fog.color.setHex(theme.fog);
+    glowLight.color.setHex(theme.glow);
+    pit.color.setHex(theme.pit);
+    matFloor.emissive.setHex(theme.floorEm);
+    matLine.color.setHex(theme.rune);
+    matRune.color.setHex(theme.rune);
+    document.documentElement.style.setProperty("--accent", "#" + ("000000" + theme.accent.toString(16)).slice(-6));
+    document.querySelector("#menu .title").style.color = theme.title;
+    refreshThemeChips();
+  }
+
+  // ---------------- menu build ----------------
+  function refreshThemeChips() {
+    var wrap = document.getElementById("themes"); wrap.innerHTML = "";
+    Object.keys(THEMES).forEach(function (k) {
+      var th = THEMES[k];
+      var el = document.createElement("div");
+      el.className = "theme" + (k === themeKey ? " active" : "");
+      el.innerHTML = '<div class="tn">' + th.name + '</div><div class="ts">' + th.sub + '</div>';
+      el.addEventListener("click", function () { applyTheme(k); });
+      wrap.appendChild(el);
+    });
+  }
+  function refreshMenu() {
+    document.getElementById("bankSouls").textContent = bankSouls;
+    document.getElementById("bestVal").textContent = best;
+    document.getElementById("winsVal").textContent = wins;
+    document.querySelectorAll("#diffs .diff").forEach(function (c) { c.classList.toggle("active", c.getAttribute("data-diff") === diffKey); });
+    refreshThemeChips();
+  }
+  document.querySelectorAll("#diffs .diff").forEach(function (c) {
+    c.addEventListener("click", function () { diffKey = c.getAttribute("data-diff"); store.set("hb_diff", diffKey); refreshMenu(); });
+  });
+  document.getElementById("runBtn").addEventListener("click", startRun);
+  document.getElementById("againBtn").addEventListener("click", startRun);
+  document.getElementById("menuBtn").addEventListener("click", function () { state = "menu"; musicOff(); show("over", false); show("menu", true); refreshMenu(); });
+
+  // ---------------- loop ----------------
+  var clock = new THREE.Clock();
+  function step(dt, t) {
+    if (state !== "playing") {
+      floorGroup.position.z = (floorGroup.position.z + dt * 4) % SEG_LEN;
+      glowLight.intensity = 2.0 + Math.sin(t * 4) * 0.5;
+      pit.intensity = 1.2 + Math.sin(t * 2.3) * 0.4;
+      if (state === "menu") {
+        // runner jogs in place, facing the camera, while you pick your hell
+        player.position.set(Math.sin(t * 0.5) * 0.4, 0, -1.2);
+        if (runnerModel) runnerModel.rotation.y = 0 + Math.sin(t * 0.5) * 0.25;
+        if (runAction) runAction.timeScale = 0.75;
+        playerShadow.position.set(player.position.x, 0.03, player.position.z);
+        if (mixer) mixer.update(dt);
+        renderer.render(scene, cameraIdle()); return;
+      }
+      // "over": death fall / victory jog
+      if (run && run.dead) { run.fall = Math.min(1, run.fall + dt * 2.2); player.rotation.x = -run.fall * 1.35; player.position.y = -run.fall * 0.15; }
+      if (run && run.won && mixer) mixer.update(dt);
+      renderer.render(scene, cameraFollow(dt)); return;
+    }
+
+    run.time += dt;
+    if (run.time >= LEVEL_SECS) { run.time = LEVEL_SECS; winRun(); return; }
+
+    run.speed = Math.min(cfg.maxSpeed, run.speed + cfg.accel * dt);
+    var effSpeed = run.speed + run.boost;
+    if (run.boost > 0) run.boost = Math.max(0, run.boost - 14 * dt);
+    run.dist += effSpeed * dt;
+
+    for (var i = 0; i < segments.length; i++) {
+      segments[i].position.z += effSpeed * dt;
+      if (segments[i].position.z > SEG_LEN) {
+        var minZ = Infinity; for (var j = 0; j < segments.length; j++) minZ = Math.min(minZ, segments[j].position.z);
+        segments[i].position.z = minZ - SEG_LEN;
+      }
+    }
+    while (run.dist > run.nextSpawn) { spawnRow(-VIEW_FAR); run.nextSpawn += cfg.spawnGap; }
+
+    run.x += (LANES[run.lane] - run.x) * Math.min(1, 14 * dt);
+    if (!run.grounded) { run.vy += GRAVITY * dt; run.y += run.vy * dt; if (run.y <= GROUND_Y) { run.y = GROUND_Y; run.vy = 0; run.grounded = true; } }
+    player.position.x = run.x; player.position.y = run.y - GROUND_Y; player.position.z = 0;
+    player.rotation.z = (LANES[run.lane] - run.x) * 0.25;
+    player.rotation.x = run.grounded ? 0 : -0.18;
+    if (runnerModel) runnerModel.rotation.y = Math.PI + (LANES[run.lane] - run.x) * -0.35;
+    if (runAction) runAction.timeScale = run.grounded ? (0.85 + (effSpeed / cfg.startSpeed) * 0.45) : 0.25;
+    if (mixer) mixer.update(dt);
+    playerShadow.position.set(run.x, 0.03, 0);
+    playerShadow.scale.setScalar(Math.max(0.4, 1 - (run.y - GROUND_Y) * 0.18));
+
+    for (var k = actives.length - 1; k >= 0; k--) {
+      var a = actives[k]; a.z += effSpeed * dt; a.mesh.position.z = a.z;
+      if (a.spin) a.mesh.rotation.y += dt * 3;
+      if (a.type === "soul") a.mesh.position.y = (a.high ? 2.1 : 1.0) + Math.sin(t * 4 + a.z) * 0.15;
+      if (a.z > -1.4 && a.z < 1.4 && a.lane === run.lane) {
+        if (a.type === "tall") { endRun(); return; }
+        else if (a.type === "low") { if (run.y < GROUND_Y + 0.9) { endRun(); return; } }
+        else if (a.type === "soul" && !a.collected) { if (Math.abs(run.y + 0.9 - a.mesh.position.y) < 1.3) { a.collected = true; run.souls++; glowLight.intensity = 4; scene.remove(a.mesh); actives.splice(k, 1); updateHud(); continue; } }
+        else if (a.type === "box" && !a.collected) { a.collected = true; run.boost = 16; run.souls += 3; glowLight.intensity = 4; scene.remove(a.mesh); actives.splice(k, 1); updateHud(); continue; }
+      }
+      if (a.z > DESPAWN) { scene.remove(a.mesh); actives.splice(k, 1); }
+    }
+
+    glowLight.intensity = 2.0 + Math.sin(t * 12) * 0.35 + run.boost * 0.05;
+    pit.position.z = -30 + Math.sin(t) * 6;
+    updateHud();
+    renderer.render(scene, cameraFollow(dt));
+  }
+  function tick() {
+    requestAnimationFrame(tick);
+    var dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
+    step(dt, t);
+  }
+
+  function cameraFollow(dt) {
+    var shake = run.camShake || 0; if (run.camShake > 0) run.camShake = Math.max(0, run.camShake - dt * 1.4);
+    camera.position.x += ((run.x * 0.45) - camera.position.x) * Math.min(1, 6 * dt) + (Math.random() - 0.5) * shake;
+    camera.position.y = 6.4 + (Math.random() - 0.5) * shake; camera.position.z = 11.5;
+    camera.lookAt(run.x * 0.32, 1.1, -16); return camera;
+  }
+  function cameraIdle() {
+    var t = clock.elapsedTime;
+    camera.position.set(Math.sin(t * 0.3) * 1.0, 2.6, 5.5);
+    camera.lookAt(0, 1.2, -1.5); return camera;
+  }
+
+  window.addEventListener("resize", function () {
+    camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  // test hooks (harmless in production)
+  window.HB = { start: startRun, step: function (n, dt) { for (var i = 0; i < n; i++) step(dt || 1 / 60, clock.elapsedTime + i * (dt || 1 / 60)); }, state: function () { return state; }, run: function () { return run; }, actives: function () { return actives; } };
+
+  applyTheme(themeKey);
+  refreshMenu();
+  tick();
+})();
+</script>
+</body>
+</html>
