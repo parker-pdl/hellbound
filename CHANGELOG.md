@@ -9,3 +9,5 @@
 - "Scary Run Music" loops from R2 during the run, stops on death/win/menu.
 - Menu re-titled "Hellscape Horror · Level Two"; hunter picker is now a colour/mood picker.
 - three.js and GLTFLoader vendored locally with CDN fallback.
+
+- Connected to Cloudflare Workers Builds (auto-deploys from main).
