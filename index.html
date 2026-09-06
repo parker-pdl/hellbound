@@ -124,7 +124,7 @@
   </div>
   <div class="hud-box" style="text-align:center">
     <div class="hud-label">Time Left</div>
-    <div class="hud-val" id="timeVal">3:00</div>
+    <div class="hud-val" id="timeVal">5:00</div>
   </div>
   <div class="hud-box" style="text-align:right">
     <div class="hud-label">Souls</div>
@@ -136,7 +136,7 @@
 <div id="menu" class="overlay">
   <div class="levelTag">Hellscape Horror · Level Two</div>
   <div class="title">HELLBOUND</div>
-  <div class="tagline">Survive three minutes. Do not stop running.</div>
+  <div class="tagline">Survive five minutes. The demon is right behind you.</div>
   <div class="pill"><span class="flame">🔥</span> <span id="bankSouls">0</span> Souls</div>
 
   <div class="seclabel">Choose your hell</div>
@@ -154,7 +154,7 @@
   </div>
 
   <div class="controls">
-    <span class="kbd-only"><b>← →</b> evade &nbsp;·&nbsp; <b>↑ / Space</b> leap &nbsp;·&nbsp; grab the <b>Lament Box</b> for a speed surge</span>
+    <span class="kbd-only"><b>← →</b> evade &nbsp;·&nbsp; <b>↑ / Space</b> leap &nbsp;·&nbsp; grab the <b>Lament Box</b> for a speed surge — the demon falls back</span>
     <span class="touch-only"><b>Swipe ← →</b> evade &nbsp;·&nbsp; <b>Swipe ↑ / tap</b> leap</span>
   </div>
 
@@ -184,6 +184,7 @@
 <div class="credit">HELLBOUND · HELLSCAPE HORROR LEVEL TWO · PARKER DATA LINK</div>
 
 <audio id="bgm" src="https://pub-8cbfdb9879b946b9aaaf1cb53456c02a.r2.dev/Scary%20Run%20Music.mp3" loop preload="auto"></audio>
+<audio id="sfxBoost" src="https://pub-8cbfdb9879b946b9aaaf1cb53456c02a.r2.dev/scared-breathing-2-47678.mp3" preload="auto"></audio>
 
 <!-- Three.js r128 + GLTFLoader: local copies first, CDN fallback. -->
 <script src="./three.min.js"></script>
@@ -202,7 +203,8 @@
   // Where the runner skin lives. Same folder as this page by default.
   // Can be pointed at an R2 URL, e.g. "https://pub-xxxx.r2.dev/runner.glb".
   var RUNNER_URL = (new URLSearchParams(location.search).get("runner")) || "./runner.glb";
-  var LEVEL_SECS = 180;              // the level runs for three minutes
+  var LEVEL_SECS = 300;              // the level runs for five minutes
+  var DEMON_URL = (new URLSearchParams(location.search).get("demon")) || "./demon.glb";
 
   var store = {
     get: function (k, d) { try { var v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } },
@@ -244,6 +246,9 @@
   var bgm = document.getElementById("bgm");
   function musicOn() { try { bgm.currentTime = 0; bgm.volume = 0.85; var p = bgm.play(); if (p && p.catch) p.catch(function () {}); } catch (e) {} }
   function musicOff() { try { bgm.pause(); } catch (e) {} }
+  // one-shot breathing clip on every Lament Box, layered over the music (a fresh copy each time so overlaps still play)
+  var sfxBoostEl = document.getElementById("sfxBoost");
+  function playBoostSfx() { try { var a = sfxBoostEl.cloneNode(); a.volume = 1.0; var p = a.play(); if (p && p.catch) p.catch(function () {}); } catch (e) {} }
 
   // ---------------- three setup ----------------
   var scene = new THREE.Scene();
@@ -330,6 +335,41 @@
 
   function shadowDisc(r) { var m = new THREE.Mesh(new THREE.CircleGeometry(r, 24), matShadow.clone()); m.rotation.x = -Math.PI / 2; m.position.y = 0.03; return m; }
   var playerShadow = shadowDisc(0.7); scene.add(playerShadow);
+
+  // ---------------- the demon (chases from behind) ----------------
+  // Same Mixamo demon as Hellscape Horror level one (demon.glb: Ch10 + walk clips).
+  var DEMON_SCALE = 1.35;
+  var DEMON_GAP_BASE = 5.0;      // normal distance behind the runner
+  var DEMON_GAP_BOOST = 7.5;     // how far a Lament Box pushes him back
+  var DEMON_GAP_MAX = 17.0;
+  var DEMON_CREEP = 0.55;        // metres per second he closes back in
+  var demon = new THREE.Group(); scene.add(demon);
+  var demonModel = null, demonMixer = null, demonClips = {}, demonAction = null, demonReady = false;
+  var demonGap = DEMON_GAP_BASE;
+  var demonLight = new THREE.PointLight(0xff6a30, 3.2, 12, 2); demonLight.position.set(0, 3.0, 1.6); demon.add(demonLight);
+  var demonShadow = shadowDisc(0.95); scene.add(demonShadow);
+  function loadDemon() {
+    if (!THREE.GLTFLoader) return;
+    new THREE.GLTFLoader().load(DEMON_URL, function (g) {
+      demonModel = g.scene;
+      demonModel.traverse(function (o) { if (o.isMesh) { o.frustumCulled = false; } });
+      demonModel.scale.setScalar(DEMON_SCALE);
+      demonModel.rotation.y = Math.PI;   // face down the corridor (toward -Z), same as the runner
+      demon.add(demonModel);
+      demonMixer = new THREE.AnimationMixer(demonModel);
+      g.animations.forEach(function (c) { demonClips[c.name] = demonMixer.clipAction(c); });
+      demonPlay("Zombie_Walk", 0);
+      demonReady = true; window.HB_DEMON_READY = true;
+    }, undefined, function (err) { console.warn("demon.glb failed to load", err); window.HB_DEMON_ERR = String(err && err.message || err); });
+  }
+  function demonPlay(name, fade) {
+    var a = demonClips[name]; if (!a || a === demonAction) return;
+    a.reset().play();
+    if (demonAction) demonAction.crossFadeTo(a, fade == null ? 0.3 : fade, false);
+    demonAction = a;
+  }
+  function demonBackOff() { demonGap = Math.min(DEMON_GAP_MAX, demonGap + DEMON_GAP_BOOST); }
+  loadDemon();
 
   // ---------------- obstacles / pickups ----------------
   var actives = [];
@@ -418,6 +458,9 @@
     player.position.set(0, 0, 0); player.rotation.set(0, 0, 0);
     if (runnerModel) { runnerModel.rotation.set(0, Math.PI, 0); }
     if (runAction) { runAction.reset().play(); runAction.timeScale = 1; }
+    demonGap = DEMON_GAP_BASE; demon.position.set(0, 0, DEMON_GAP_BASE + 4); demon.scale.setScalar(1);
+    if (demonModel) demonModel.rotation.y = Math.PI;
+    demonPlay("Zombie_Walk", 0.1);
     state = "playing";
     show("hud", true); show("menu", false); show("over", false);
     musicOn();
@@ -438,7 +481,7 @@
     document.getElementById("goBest").textContent = best;
     show("newRec", isRecord);
     document.getElementById("overFlavor").textContent = won
-      ? "Three minutes of hell, and you are still on your feet. Level Two complete."
+      ? "Five minutes of hell with a demon on your heels, and you are still on your feet. Level Two complete."
       : (isRecord ? "Further than ever. Still not free." : pickFlavor(d));
     run.camShake = won ? 0.2 : 0.7;
     if (runAction) { runAction.timeScale = won ? 0.6 : 0; }
@@ -451,7 +494,7 @@
   function pickFlavor(d) {
     if (d < 120) return "That was barely a stumble.";
     if (d < 320) return "The corridor swallows another.";
-    if (d < 600) return "You ran well. Hell ran better.";
+    if (d < 600) return "You ran well. The demon ran better.";
     return "So close. The floor still took you.";
   }
 
@@ -519,11 +562,20 @@
         if (runAction) runAction.timeScale = 0.75;
         playerShadow.position.set(player.position.x, 0.03, player.position.z);
         if (mixer) mixer.update(dt);
+        demon.position.set(2.0 + Math.sin(t * 0.4) * 0.6, 0, -4.5);
+        if (demonModel) demonModel.rotation.y = Math.sin(t * 0.4) * 0.3;
+        if (demonAction) demonAction.timeScale = 0.9;
+        if (demonMixer) demonMixer.update(dt);
+        demonShadow.position.set(demon.position.x, 0.03, demon.position.z);
+        demonLight.intensity = 3.0 + Math.sin(t * 3) * 0.5;
         renderer.render(scene, cameraIdle()); return;
       }
       // "over": death fall / victory jog
       if (run && run.dead) { run.fall = Math.min(1, run.fall + dt * 2.2); player.rotation.x = -run.fall * 1.35; player.position.y = -run.fall * 0.15; }
       if (run && run.won && mixer) mixer.update(dt);
+      if (run && run.dead) { demon.position.z += (1.2 - demon.position.z) * Math.min(1, 6 * dt); demon.position.x += (run.x - demon.position.x) * Math.min(1, 8 * dt); }
+      if (demonMixer) demonMixer.update(dt);
+      demonShadow.position.set(demon.position.x, 0.03, demon.position.z);
       renderer.render(scene, cameraFollow(dt)); return;
     }
 
@@ -555,6 +607,16 @@
     playerShadow.position.set(run.x, 0.03, 0);
     playerShadow.scale.setScalar(Math.max(0.4, 1 - (run.y - GROUND_Y) * 0.18));
 
+    // demon: sits demonGap behind you, creeps closer over time, thrown back by every Lament Box
+    demonGap = Math.max(DEMON_GAP_BASE, demonGap - DEMON_CREEP * dt);
+    demon.position.z += (demonGap - demon.position.z) * Math.min(1, 3.5 * dt);
+    demon.position.x += (run.x - demon.position.x) * Math.min(1, 4.5 * dt);
+    if (demonModel) demonModel.rotation.y = Math.PI + (run.x - demon.position.x) * -0.25;
+    if (demonAction) demonAction.timeScale = 1.6 + (effSpeed / cfg.startSpeed) * 0.5;
+    if (demonMixer) demonMixer.update(dt);
+    demonShadow.position.set(demon.position.x, 0.03, demon.position.z);
+    demonLight.intensity = 3.0 + Math.sin(t * 9) * 0.6;
+
     for (var k = actives.length - 1; k >= 0; k--) {
       var a = actives[k]; a.z += effSpeed * dt; a.mesh.position.z = a.z;
       if (a.spin) a.mesh.rotation.y += dt * 3;
@@ -563,7 +625,7 @@
         if (a.type === "tall") { endRun(); return; }
         else if (a.type === "low") { if (run.y < GROUND_Y + 0.9) { endRun(); return; } }
         else if (a.type === "soul" && !a.collected) { if (Math.abs(run.y + 0.9 - a.mesh.position.y) < 1.3) { a.collected = true; run.souls++; glowLight.intensity = 4; scene.remove(a.mesh); actives.splice(k, 1); updateHud(); continue; } }
-        else if (a.type === "box" && !a.collected) { a.collected = true; run.boost = 16; run.souls += 3; glowLight.intensity = 4; scene.remove(a.mesh); actives.splice(k, 1); updateHud(); continue; }
+        else if (a.type === "box" && !a.collected) { a.collected = true; run.boost = 16; run.souls += 3; glowLight.intensity = 4; demonBackOff(); playBoostSfx(); scene.remove(a.mesh); actives.splice(k, 1); updateHud(); continue; }
       }
       if (a.z > DESPAWN) { scene.remove(a.mesh); actives.splice(k, 1); }
     }
@@ -582,8 +644,8 @@
   function cameraFollow(dt) {
     var shake = run.camShake || 0; if (run.camShake > 0) run.camShake = Math.max(0, run.camShake - dt * 1.4);
     camera.position.x += ((run.x * 0.45) - camera.position.x) * Math.min(1, 6 * dt) + (Math.random() - 0.5) * shake;
-    camera.position.y = 6.4 + (Math.random() - 0.5) * shake; camera.position.z = 11.5;
-    camera.lookAt(run.x * 0.32, 1.1, -16); return camera;
+    camera.position.y = 6.8 + (Math.random() - 0.5) * shake; camera.position.z = 13.2;
+    camera.lookAt(run.x * 0.32, 1.4, -14); return camera;
   }
   function cameraIdle() {
     var t = clock.elapsedTime;
@@ -597,7 +659,7 @@
   });
 
   // test hooks (harmless in production)
-  window.HB = { start: startRun, step: function (n, dt) { for (var i = 0; i < n; i++) step(dt || 1 / 60, clock.elapsedTime + i * (dt || 1 / 60)); }, state: function () { return state; }, run: function () { return run; }, actives: function () { return actives; } };
+  window.HB = { start: startRun, demonGap: function () { return demonGap; }, demonZ: function () { return demon.position.z; }, backOff: demonBackOff, step: function (n, dt) { for (var i = 0; i < n; i++) step(dt || 1 / 60, clock.elapsedTime + i * (dt || 1 / 60)); }, state: function () { return state; }, run: function () { return run; }, actives: function () { return actives; } };
 
   applyTheme(themeKey);
   refreshMenu();

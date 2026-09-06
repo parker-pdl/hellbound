@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-06 — The demon joins Level Two
+- The Hellscape Horror demon (`demon.glb`) now chases the runner from behind.
+- Every Lament Box (speed boost) throws the demon back; he creeps closer again over time.
+- Level extended from 3 to 5 minutes.
+- One-shot "scared breathing" clip plays on each speed boost, on top of the music.
+- Camera pulled back so the demon stays in frame.
+- Music fix: removed crossorigin attribute (R2 has no CORS header).
+
 ## 2026-09-06 — Level Two rebuild
 - Removed both old characters (blocky runner + the four hunter models).
 - New player skin: Mixamo Ch01 with the "Fast Run" animation (`runner.glb`).
@@ -9,5 +17,3 @@
 - "Scary Run Music" loops from R2 during the run, stops on death/win/menu.
 - Menu re-titled "Hellscape Horror · Level Two"; hunter picker is now a colour/mood picker.
 - three.js and GLTFLoader vendored locally with CDN fallback.
-
-- Connected to Cloudflare Workers Builds (auto-deploys from main).
