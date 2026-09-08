@@ -125,6 +125,7 @@
   <div class="hud-box" style="text-align:center">
     <div class="hud-label">Time Left</div>
     <div class="hud-val" id="timeVal">5:00</div>
+    <div id="livesTag" style="font-size:13px;letter-spacing:2px;color:#ff5a4a;margin-top:2px">♥♥♥</div>
   </div>
   <div class="hud-box" style="text-align:right">
     <div class="hud-label">Souls</div>
@@ -175,8 +176,11 @@
     <div><div class="n" id="goBest">0</div><div class="l">Best</div></div>
   </div>
   <div class="newrec hidden" id="newRec">✦ NEW FURTHEST ESCAPE ✦</div>
+  <div id="livesNote" class="tagline hidden" style="margin-top:6px"></div>
   <div class="actions">
-    <button class="btn btn-primary" id="againBtn">▶ Run Again</button>
+    <button class="btn btn-primary hidden" id="contBtn">♥ Continue</button>
+    <button class="btn btn-primary hidden" id="adBtn">📺 Watch an ad · +3 lives</button>
+    <button class="btn btn-ghost" id="againBtn">▶ Run Again</button>
     <button class="btn btn-ghost" id="menuBtn">Menu</button>
   </div>
 </div>
@@ -222,10 +226,10 @@
 
   // ---------------- themes (corridor colour + mood) ----------------
   var THEMES = {
-    pinned:   { name: "The Pinned",   sub: "cold iron, patient dark",  title: "#e8e2d6", accent: 0x9fc4ff, fog: 0x140611, bg: 0x0a0410, glow: 0xb85cff, pit: 0x7a2bd0, floorEm: 0x160318, rune: 0xb26bff },
-    scorched: { name: "The Scorched", sub: "the furnace never sleeps",  title: "#ffd24a", accent: 0x86ff5a, fog: 0x12100a, bg: 0x080702, glow: 0xff7a1e, pit: 0xff4400, floorEm: 0x140a02, rune: 0x9dff4a },
-    drowned:  { name: "The Drowned",  sub: "the lake beneath the floor", title: "#bfe3d0", accent: 0x8fd6c0, fog: 0x08120e, bg: 0x040a08, glow: 0x3affb0, pit: 0x1f8f6a, floorEm: 0x03140e, rune: 0x4fffc0 },
-    crimson:  { name: "The Crimson",  sub: "further into the dark",     title: "#ff5a3a", accent: 0xff2b1c, fog: 0x1a0402, bg: 0x0a0201, glow: 0xff3311, pit: 0xff2200, floorEm: 0x120302, rune: 0xff3a12 }
+    pinned:   { name: "The Pinned",   sub: "cold iron, patient dark",  demon: "pinned",   title: "#e8e2d6", accent: 0x9fc4ff, fog: 0x140611, bg: 0x0a0410, glow: 0xb85cff, pit: 0x7a2bd0, floorEm: 0x160318, rune: 0xb26bff },
+    scorched: { name: "The Scorched", sub: "the furnace never sleeps",  demon: "scorched", title: "#ffd24a", accent: 0x86ff5a, fog: 0x12100a, bg: 0x080702, glow: 0xff7a1e, pit: 0xff4400, floorEm: 0x140a02, rune: 0x9dff4a },
+    drowned:  { name: "The Drowned",  sub: "the lake beneath the floor", demon: "drowned",  title: "#bfe3d0", accent: 0x8fd6c0, fog: 0x08120e, bg: 0x040a08, glow: 0x3affb0, pit: 0x1f8f6a, floorEm: 0x03140e, rune: 0x4fffc0 },
+    crimson:  { name: "The Crimson",  sub: "further into the dark",     demon: "pinned",   title: "#ff5a3a", accent: 0xff2b1c, fog: 0x1a0402, bg: 0x0a0201, glow: 0xff3311, pit: 0xff2200, floorEm: 0x120302, rune: 0xff3a12 }
   };
 
   var LANES = [-2.4, 0, 2.4];
@@ -238,6 +242,22 @@
   var cfg = DIFFS[diffKey], theme = THEMES[themeKey];
 
   var bankSouls = parseInt(store.get("hb_bank", "0"), 10) || 0;
+
+  // ---------------- lives ----------------
+  // Three lives per run. Getting caught spends one and you carry on from
+  // where you fell. Out of lives: the Android app offers a rewarded ad for
+  // three more (window.HBNative, see the Capacitor shell); the web version
+  // just starts over.
+  var LIVES_MAX = 3, AD_LIVES = 3;
+  var lives = LIVES_MAX;
+  var NAT = window.HBNative || null;
+  function hasAds() { return !!(NAT && typeof NAT.showRewarded === "function"); }
+  function livesStr() { var out = ""; for (var i = 0; i < lives; i++) out += "♥"; return out || "—"; }
+  window.__hbReward = function (earned) {
+    if (!earned) return;
+    lives = AD_LIVES;
+    continueRun();
+  };
   var best = parseInt(store.get("hb_best", "0"), 10) || 0;
   var wins = parseInt(store.get("hb_wins", "0"), 10) || 0;
   var run = null;
@@ -348,19 +368,46 @@
   var demonGap = DEMON_GAP_BASE;
   var demonLight = new THREE.PointLight(0xff6a30, 3.2, 12, 2); demonLight.position.set(0, 3.0, 1.6); demon.add(demonLight);
   var demonShadow = shadowDisc(0.95); scene.add(demonShadow);
-  function loadDemon() {
+
+  // Three demons, one per hell. The Pinned and The Crimson share the original
+  // Ch10 demon; The Scorched gets the skeleton zombie, The Drowned the prisoner.
+  // Each file is loaded once, on first use, then kept.
+  var DEMONS = {
+    pinned:   { url: DEMON_URL,             clip: "Zombie_Walk", scale: DEMON_SCALE, light: 0xff6a30 },
+    scorched: { url: "./demon_scorched.glb", clip: "Run",         scale: DEMON_SCALE, light: 0xff9a2a },
+    drowned:  { url: "./demon_drowned.glb",  clip: "Run",         scale: DEMON_SCALE, light: 0x3affb0 }
+  };
+  var demonCache = {};   // key -> { scene, mixer, clips, clipName }
+  var demonKey = null;
+  function loadDemonFor(key, done) {
+    var d = DEMONS[key] || DEMONS.pinned;
+    if (demonCache[key]) { done && done(demonCache[key]); return; }
     if (!THREE.GLTFLoader) return;
-    new THREE.GLTFLoader().load(DEMON_URL, function (g) {
-      demonModel = g.scene;
-      demonModel.traverse(function (o) { if (o.isMesh) { o.frustumCulled = false; } });
-      demonModel.scale.setScalar(DEMON_SCALE);
-      demonModel.rotation.y = Math.PI;   // face down the corridor (toward -Z), same as the runner
-      demon.add(demonModel);
-      demonMixer = new THREE.AnimationMixer(demonModel);
-      g.animations.forEach(function (c) { demonClips[c.name] = demonMixer.clipAction(c); });
-      demonPlay("Zombie_Walk", 0);
-      demonReady = true; window.HB_DEMON_READY = true;
-    }, undefined, function (err) { console.warn("demon.glb failed to load", err); window.HB_DEMON_ERR = String(err && err.message || err); });
+    new THREE.GLTFLoader().load(d.url, function (g) {
+      var m = g.scene;
+      m.traverse(function (o) { if (o.isMesh) { o.frustumCulled = false; } });
+      m.scale.setScalar(d.scale);
+      m.rotation.y = Math.PI;   // face down the corridor (toward -Z), same as the runner
+      m.visible = false;
+      demon.add(m);
+      var mixer = new THREE.AnimationMixer(m), clips = {};
+      g.animations.forEach(function (c) { clips[c.name] = mixer.clipAction(c); });
+      var first = g.animations.length ? g.animations[0].name : null;
+      demonCache[key] = { scene: m, mixer: mixer, clips: clips, clipName: clips[d.clip] ? d.clip : first, light: d.light };
+      done && done(demonCache[key]);
+    }, undefined, function (err) { console.warn(d.url + " failed to load", err); window.HB_DEMON_ERR = String(err && err.message || err); });
+  }
+  function useDemon(key) {
+    var want = (THEMES[themeKey] && THEMES[themeKey].demon) || "pinned";
+    key = key || want;
+    loadDemonFor(key, function (c) {
+      if (demonModel && demonModel !== c.scene) demonModel.visible = false;
+      demonModel = c.scene; demonModel.visible = true; demonModel.rotation.y = Math.PI;
+      demonMixer = c.mixer; demonClips = c.clips; demonAction = null;
+      demonLight.color.setHex(c.light);
+      demonPlay(c.clipName, 0);
+      demonKey = key; demonReady = true; window.HB_DEMON_READY = true; window.HB_DEMON_KEY = key;
+    });
   }
   function demonPlay(name, fade) {
     var a = demonClips[name]; if (!a || a === demonAction) return;
@@ -369,7 +416,7 @@
     demonAction = a;
   }
   function demonBackOff() { demonGap = Math.min(DEMON_GAP_MAX, demonGap + DEMON_GAP_BOOST); }
-  loadDemon();
+  useDemon();   // pre-load the demon for the remembered hell
 
   // ---------------- obstacles / pickups ----------------
   var actives = [];
@@ -460,7 +507,9 @@
     if (runAction) { runAction.reset().play(); runAction.timeScale = 1; }
     demonGap = DEMON_GAP_BASE; demon.position.set(0, 0, DEMON_GAP_BASE + 4); demon.scale.setScalar(1);
     if (demonModel) demonModel.rotation.y = Math.PI;
-    demonPlay("Zombie_Walk", 0.1);
+    useDemon();
+    lives = LIVES_MAX;
+    player.visible = true; playerShadow.visible = true; demon.visible = true; demonShadow.visible = true;
     state = "playing";
     show("hud", true); show("menu", false); show("over", false);
     musicOn();
@@ -483,6 +532,14 @@
     document.getElementById("overFlavor").textContent = won
       ? "Five minutes of hell with a demon on your heels, and you are still on your feet. Level Two complete."
       : (isRecord ? "Further than ever. Still not free." : pickFlavor(d));
+    if (!won) lives = Math.max(0, lives - 1);
+    var note = document.getElementById("livesNote");
+    show("contBtn", !won && lives > 0);
+    show("adBtn", !won && lives === 0 && hasAds());
+    if (won) { show("livesNote", false); }
+    else if (lives > 0) { note.textContent = livesStr() + "  " + lives + (lives === 1 ? " life" : " lives") + " left. Keep running?"; show("livesNote", true); }
+    else if (hasAds()) { note.textContent = "Out of lives. Watch a short ad for " + AD_LIVES + " more."; show("livesNote", true); }
+    else { note.textContent = "Out of lives. Hell starts over."; show("livesNote", true); }
     run.camShake = won ? 0.2 : 0.7;
     if (runAction) { runAction.timeScale = won ? 0.6 : 0; }
     show("hud", false);
@@ -490,6 +547,29 @@
     setTimeout(function () { if (state === "over") { show("over", true); musicOff(); } }, won ? 900 : 520);
   }
   function endRun() { finishRun(false); }
+  // Carry on from where the demon caught you: same distance, time and souls.
+  function continueRun() {
+    if (!run || state !== "over" || run.won) return;
+    // remove anything close enough to kill you again on the first frame
+    for (var i = actives.length - 1; i >= 0; i--) {
+      if (actives[i].mesh.position.z > -30) { scene.remove(actives[i].mesh); actives.splice(i, 1); }
+    }
+    run.dead = false; run.fall = 0; run.boost = 6; run.camShake = 0.15;
+    run.y = GROUND_Y; run.vy = 0; run.grounded = true;
+    player.rotation.set(0, 0, 0); player.position.y = 0;
+    if (runnerModel) runnerModel.rotation.set(0, Math.PI, 0);
+    if (runAction) { runAction.reset().play(); runAction.timeScale = 1; }
+    demonGap = DEMON_GAP_MAX; demon.position.set(run.x, 0, DEMON_GAP_MAX + 4);
+    if (demonModel) demonModel.rotation.y = Math.PI;
+    state = "playing";
+    show("over", false); show("hud", true);
+    musicOn();
+    updateHud();
+  }
+  document.getElementById("contBtn").addEventListener("click", continueRun);
+  document.getElementById("adBtn").addEventListener("click", function () {
+    if (hasAds()) { try { NAT.showRewarded("lives"); } catch (e) { console.warn(e); } }
+  });
   function winRun() { finishRun(true); }
   function pickFlavor(d) {
     if (d < 120) return "That was barely a stumble.";
@@ -504,6 +584,7 @@
     document.getElementById("speedTag").textContent = "SPEED ×" + (run.speed / cfg.startSpeed).toFixed(1);
     var tv = document.getElementById("timeVal"); var left = LEVEL_SECS - run.time;
     tv.textContent = fmtTime(left); tv.classList.toggle("urgent", left <= 15);
+    document.getElementById("livesTag").textContent = livesStr();
   }
   function show(id, on) { document.getElementById(id).classList.toggle("hidden", !on); }
 
@@ -520,6 +601,7 @@
     document.documentElement.style.setProperty("--accent", "#" + ("000000" + theme.accent.toString(16)).slice(-6));
     document.querySelector("#menu .title").style.color = theme.title;
     refreshThemeChips();
+    loadDemonFor(theme.demon || "pinned");
   }
 
   // ---------------- menu build ----------------
@@ -552,24 +634,16 @@
   var clock = new THREE.Clock();
   function step(dt, t) {
     if (state !== "playing") {
-      floorGroup.position.z = (floorGroup.position.z + dt * 4) % SEG_LEN;
+      if (state !== "menu") floorGroup.position.z = (floorGroup.position.z + dt * 4) % SEG_LEN;
       glowLight.intensity = 2.0 + Math.sin(t * 4) * 0.5;
       pit.intensity = 1.2 + Math.sin(t * 2.3) * 0.4;
       if (state === "menu") {
-        // runner jogs in place, facing the camera, while you pick your hell
-        player.position.set(Math.sin(t * 0.5) * 0.4, 0, -1.2);
-        if (runnerModel) runnerModel.rotation.y = 0 + Math.sin(t * 0.5) * 0.25;
-        if (runAction) runAction.timeScale = 0.75;
-        playerShadow.position.set(player.position.x, 0.03, player.position.z);
-        if (mixer) mixer.update(dt);
-        demon.position.set(2.0 + Math.sin(t * 0.4) * 0.6, 0, -4.5);
-        if (demonModel) demonModel.rotation.y = Math.sin(t * 0.4) * 0.3;
-        if (demonAction) demonAction.timeScale = 0.9;
-        if (demonMixer) demonMixer.update(dt);
-        demonShadow.position.set(demon.position.x, 0.03, demon.position.z);
-        demonLight.intensity = 3.0 + Math.sin(t * 3) * 0.5;
+        // quiet corridor behind the menu: no runner, no demon, nothing to clip
+        player.visible = false; playerShadow.visible = false;
+        demon.visible = false; demonShadow.visible = false;
         renderer.render(scene, cameraIdle()); return;
       }
+      player.visible = true; playerShadow.visible = true; demon.visible = true; demonShadow.visible = true;
       // "over": death fall / victory jog
       if (run && run.dead) { run.fall = Math.min(1, run.fall + dt * 2.2); player.rotation.x = -run.fall * 1.35; player.position.y = -run.fall * 0.15; }
       if (run && run.won && mixer) mixer.update(dt);
@@ -659,7 +733,7 @@
   });
 
   // test hooks (harmless in production)
-  window.HB = { start: startRun, demonGap: function () { return demonGap; }, demonZ: function () { return demon.position.z; }, backOff: demonBackOff, step: function (n, dt) { for (var i = 0; i < n; i++) step(dt || 1 / 60, clock.elapsedTime + i * (dt || 1 / 60)); }, state: function () { return state; }, run: function () { return run; }, actives: function () { return actives; } };
+  window.HB = { start: startRun, demonGap: function () { return demonGap; }, demonZ: function () { return demon.position.z; }, backOff: demonBackOff, step: function (n, dt) { for (var i = 0; i < n; i++) step(dt || 1 / 60, clock.elapsedTime + i * (dt || 1 / 60)); }, state: function () { return state; }, run: function () { return run; }, actives: function () { return actives; }, lives: function () { return lives; }, cont: continueRun, setTheme: applyTheme, demonKey: function () { return demonKey; }, end: endRun };
 
   applyTheme(themeKey);
   refreshMenu();
