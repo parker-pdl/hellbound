@@ -1,0 +1,4 @@
+
+.wrangler/
+_deploy.ps1
+node_modules/
